@@ -1,16 +1,21 @@
 import { Component } from '@angular/core';
 import { ProductItems } from '../shared/types/productItem';
 import { ProductItemComponent } from '../shared/product-item/product-item.component';
-import { NgIf } from '@angular/common';
+import { CommonModule, NgIf } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { BlogService } from '../../services/BlogService';
-import { map, Subscription } from 'rxjs';
+import { map, Observable, Subscription } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { AppState } from '../store/app.state';
+import { stat } from 'fs';
+import { setListBlog } from '../store/BlogStore/blog.actions';
 
 @Component({
   selector: 'app-home',
   imports: [ 
     ProductItemComponent,
-    NgIf
+    NgIf,
+    CommonModule
 ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css'
@@ -19,23 +24,33 @@ export class HomeComponent {
   isDisable = false;
   isVisable = true;
   getBlogApi : Subscription ;
-  products:ProductItems[] = [
-    // {id:1,name:'samba og', price:400000, image:'assets/images/samba.png' },
-    // {id:2,name:'nike og', price:300000, image:'assets/images/samba.png' },
-    // {id:3,name:'adidas og', price:500000, image:'assets/images/samba.png' },
-    // {id:4,name:'youdy og', price:600000, image:'assets/images/samba.png' }
-  ]
-  constructor(private blogService:BlogService) { 
+  products:ProductItems[] = [];
+  blogs$:Observable<ProductItems[]> | undefined;
+
+
+  constructor(private blogService:BlogService,private store: Store<AppState>) { 
     console.log('HomeComponent constructor called');
     this.getBlogApi = new Subscription();
+    this.blogs$ = this.store.select(state => state.blogs);
   }
 
   handleDelete = (id:number) =>{
-    this.blogService.deleteBlog(id).subscribe((res:any) => {
-      if(res.data ===1){    
-        this.products = this.products.filter((item) => item.id !== id);
-      } 
-  }) }
+  //   this.blogService.deleteBlog(id).subscribe((res:any) => {
+  //     if(res.data ===1){    
+  //       this.products = this.products.filter((item) => item.id !== id);
+  //     } 
+  // }
+  let currentBlogs :ProductItems[] = [];
+  this.store.select(state => state.blogs)
+  .subscribe((res) => {
+    currentBlogs = res;
+  });
+  this.blogService.deleteBlog(id).subscribe((res:any) => {
+    if(res.data ===1){  
+      const updatedBlogs = currentBlogs.filter((item) => item.id !== id);
+      this.store.dispatch(setListBlog({blogs:updatedBlogs}));
+}})
+}
 
 
   // ngOnInit chạy ngay sau khi html được render
@@ -54,6 +69,7 @@ export class HomeComponent {
       }).filter((product) => product.price > 300000);})
     ).subscribe((resData) => {
       this.products = resData;
+      this.store.dispatch(setListBlog({blogs:resData}));
       // console.log("Data API: ",this.products);
     });
   }
